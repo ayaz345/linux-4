@@ -60,18 +60,18 @@ class FirmwareWhence(list):
                 version = None
                 continue
 
-            match = re.match(
+            if match := re.match(
                 r'(Driver|File|Info|Licen[cs]e|Source|Version'
                 r'|Original licen[cs]e info(?:rmation)?):\s*(.*)\n',
-                line)
-            if match:
+                line,
+            ):
                 keyword, value = match.group(1, 2)
                 if keyword == 'Driver':
                     driver = value.split(' ')[0].lower()
                 elif keyword == 'File':
                     match = re.match(r'(\S+)(?:\s+--\s+(.*))?', value)
-                    binary.append(match.group(1))
-                    desc = match.group(2)
+                    binary.append(match[1])
+                    desc = match[2]
                 elif keyword in ['Info', 'Version']:
                     version = value
                 elif keyword == 'Source':

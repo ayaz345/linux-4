@@ -86,21 +86,23 @@ class Gencontrol(Base):
         for featureset in fs_enabled:
             makeflags_featureset = makeflags.copy()
             makeflags_featureset['FEATURESET'] = featureset
-            cmds_source = ["$(MAKE) -f debian/rules.real source-featureset %s"
-                           % makeflags_featureset]
-            makefile.add('source_%s_real' % featureset, cmds=cmds_source)
-            makefile.add('source_%s' % featureset,
-                         ['source_%s_real' % featureset])
-            makefile.add('source', ['source_%s' % featureset])
+            cmds_source = [
+                f"$(MAKE) -f debian/rules.real source-featureset {makeflags_featureset}"
+            ]
+            makefile.add(f'source_{featureset}_real', cmds=cmds_source)
+            makefile.add(f'source_{featureset}', [f'source_{featureset}_real'])
+            makefile.add('source', [f'source_{featureset}'])
 
         triplet_enabled = []
         for arch in iter(self.config['base', ]['arches']):
             for featureset in self.config['base', arch].get('featuresets', ()):
                 if self.config.merge('base', None, featureset).get('enabled', True):
-                    for flavour in self.config['base', arch, featureset]['flavours']:
-                        triplet_enabled.append('%s_%s_%s' %
-                                               (arch, featureset, flavour))
-
+                    triplet_enabled.extend(
+                        f'{arch}_{featureset}_{flavour}'
+                        for flavour in self.config['base', arch, featureset][
+                            'flavours'
+                        ]
+                    )
         makeflags = makeflags.copy()
         makeflags['ALL_FEATURESETS'] = ' '.join(fs_enabled)
         makeflags['ALL_TRIPLETS'] = ' '.join(triplet_enabled)
@@ -120,33 +122,38 @@ class Gencontrol(Base):
         if self.config.merge('packages').get('tools', True):
             packages.extend(self.process_packages(self.templates["control.tools"], self.vars))
 
-        self._substitute_file('perf.lintian-overrides', self.vars,
-                              'debian/linux-perf-%s.lintian-overrides' %
-                              self.vars['version'])
+        self._substitute_file(
+            'perf.lintian-overrides',
+            self.vars,
+            f"debian/linux-perf-{self.vars['version']}.lintian-overrides",
+        )
 
     def do_indep_featureset_setup(self, vars, makeflags, featureset, extra):
         makeflags['LOCALVERSION'] = vars['localversion']
-        kernel_arches = set()
-        for arch in iter(self.config['base', ]['arches']):
-            if self.config.get_merge('base', arch, featureset, None, 'flavours'):
-                kernel_arches.add(self.config['base', arch]['kernel-arch'])
+        kernel_arches = {
+            self.config['base', arch]['kernel-arch']
+            for arch in iter(self.config['base',]['arches'])
+            if self.config.get_merge('base', arch, featureset, None, 'flavours')
+        }
         makeflags['ALL_KERNEL_ARCHES'] = ' '.join(sorted(list(kernel_arches)))
 
         vars['featureset_desc'] = ''
         if featureset != 'none':
             desc = self.config[('description', None, featureset)]
             desc_parts = desc['parts']
-            vars['featureset_desc'] = (' with the %s featureset' %
-                                       desc['part-short-%s' % desc_parts[0]])
+            vars[
+                'featureset_desc'
+            ] = f" with the {desc[f'part-short-{desc_parts[0]}']} featureset"
 
     def do_indep_featureset_packages(self, packages, makefile, featureset,
                                      vars, makeflags, extra):
         headers_featureset = self.templates["control.headers.featureset"]
         packages.extend(self.process_packages(headers_featureset, vars))
 
-        cmds_binary_arch = ["$(MAKE) -f debian/rules.real binary-indep-featureset %s" %
-                            makeflags]
-        makefile.add('binary-indep_%s_real' % featureset, cmds=cmds_binary_arch)
+        cmds_binary_arch = [
+            f"$(MAKE) -f debian/rules.real binary-indep-featureset {makeflags}"
+        ]
+        makefile.add(f'binary-indep_{featureset}_real', cmds=cmds_binary_arch)
 
     arch_makeflags = (
         ('kernel-arch', 'KERNEL_ARCH', False),
@@ -164,18 +171,18 @@ class Gencontrol(Base):
                                                      stderr=subprocess.DEVNULL)
         except subprocess.CalledProcessError:
             # This sometimes happens for the newest ports :-/
-            print('W: Unable to get GNU type for %s' % arch, file=sys.stderr)
+            print(f'W: Unable to get GNU type for {arch}', file=sys.stderr)
         else:
             vars['gnu-type-package'] = gnu_type_bytes.decode('utf-8').strip().replace('_', '-')
 
     def do_arch_packages(self, packages, makefile, arch, vars, makeflags, extra):
         if self.version.linux_modifier is None:
             try:
-                abiname_part = '-%s' % self.config['abi', arch]['abiname']
+                abiname_part = f"-{self.config['abi', arch]['abiname']}"
             except KeyError:
                 abiname_part = self.abiname_part
             makeflags['ABINAME'] = vars['abiname'] = \
-                self.abiname_version + abiname_part
+                    self.abiname_version + abiname_part
 
         # Some userland architectures require kernels from another
         # (Debian) architecture, e.g. x32/amd64.
@@ -193,7 +200,7 @@ class Gencontrol(Base):
 
         if self.config.merge('packages').get('libc-dev', True):
             libc_dev = self.templates["control.libc-dev"]
-            packages_headers_arch[0:0] = self.process_packages(libc_dev, {})
+            packages_headers_arch[:0] = self.process_packages(libc_dev, {})
         else:
             makeflags['DO_LIBC'] = False
 
@@ -203,24 +210,26 @@ class Gencontrol(Base):
 
         merge_packages(packages, packages_headers_arch, arch)
 
-        cmds_build_arch = ["$(MAKE) -f debian/rules.real build-arch-arch %s" % makeflags]
-        makefile.add('build-arch_%s_real' % arch, cmds=cmds_build_arch)
+        cmds_build_arch = [f"$(MAKE) -f debian/rules.real build-arch-arch {makeflags}"]
+        makefile.add(f'build-arch_{arch}_real', cmds=cmds_build_arch)
 
-        cmds_binary_arch = ["$(MAKE) -f debian/rules.real binary-arch-arch %s" % makeflags]
-        makefile.add('binary-arch_%s_real' % arch, cmds=cmds_binary_arch)
+        cmds_binary_arch = [
+            f"$(MAKE) -f debian/rules.real binary-arch-arch {makeflags}"
+        ]
+        makefile.add(f'binary-arch_{arch}_real', cmds=cmds_binary_arch)
 
         # For stage1 build profile
-        makefile.add('binary-libc-dev_%s' % arch,
-                     ['source_none_real'],
-                     ["$(MAKE) -f debian/rules.real install-libc-dev_%s %s" %
-                      (arch, makeflags)])
+        makefile.add(
+            f'binary-libc-dev_{arch}',
+            ['source_none_real'],
+            [f"$(MAKE) -f debian/rules.real install-libc-dev_{arch} {makeflags}"],
+        )
 
         if os.getenv('DEBIAN_KERNEL_DISABLE_INSTALLER'):
-            if self.changelog[0].distribution == 'UNRELEASED':
-                import warnings
-                warnings.warn('Disable installer modules on request (DEBIAN_KERNEL_DISABLE_INSTALLER set)')
-            else:
+            if self.changelog[0].distribution != 'UNRELEASED':
                 raise RuntimeError('Unable to disable installer modules in release build (DEBIAN_KERNEL_DISABLE_INSTALLER set)')
+            import warnings
+            warnings.warn('Disable installer modules on request (DEBIAN_KERNEL_DISABLE_INSTALLER set)')
         elif self.config.merge('packages').get('installer', True):
             # Add udebs using kernel-wedge
             installer_def_dir = 'debian/installer'
@@ -259,12 +268,18 @@ class Gencontrol(Base):
                 # correctly with an empty package list.
                 if udeb_packages:
                     makefile.add(
-                        'binary-arch_%s' % arch,
-                        cmds=["$(MAKE) -f debian/rules.real install-udeb_%s %s "
-                              "PACKAGE_NAMES='%s' UDEB_UNSIGNED_TEST_BUILD=%s" %
-                              (arch, makeflags,
-                               ' '.join(p['Package'] for p in udeb_packages),
-                               test_build)])
+                        f'binary-arch_{arch}',
+                        cmds=[
+                            "$(MAKE) -f debian/rules.real install-udeb_%s %s "
+                            "PACKAGE_NAMES='%s' UDEB_UNSIGNED_TEST_BUILD=%s"
+                            % (
+                                arch,
+                                makeflags,
+                                ' '.join(p['Package'] for p in udeb_packages),
+                                test_build,
+                            )
+                        ],
+                    )
 
     def do_featureset_setup(self, vars, makeflags, arch, featureset, extra):
         config_base = self.config.merge('base', arch, featureset)

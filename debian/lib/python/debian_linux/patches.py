@@ -22,10 +22,7 @@ class Operation(object):
             raise
 
     def _log(self, result):
-        if result:
-            s = "OK"
-        else:
-            s = "FAIL"
+        s = "OK" if result else "FAIL"
         print("""  (%s) %-4s %s""" % (self.operation, s, self.name))
 
     def do(self, dir):
@@ -71,11 +68,8 @@ class OperationPatchPop(OperationPatch):
 
 class SubOperation(Operation):
     def _log(self, result):
-        if result:
-            s = "OK"
-        else:
-            s = "FAIL"
-        print("""    %-10s %-4s %s""" % ('(%s)' % self.operation, s, self.name))
+        s = "OK" if result else "FAIL"
+        print("""    %-10s %-4s %s""" % (f'({self.operation})', s, self.name))
 
 
 class SubOperationFilesRemove(SubOperation):
@@ -97,7 +91,7 @@ class SubOperationFilesUnifdef(SubOperation):
         filename = os.path.join(dir, self.name)
         ret = subprocess.call(("unifdef", "-o", filename, filename) + tuple(self.data))
         if ret == 0:
-            raise RuntimeError("unifdef of %s removed nothing" % self.name)
+            raise RuntimeError(f"unifdef of {self.name} removed nothing")
         elif ret != 1:
             raise RuntimeError("unifdef failed")
 
@@ -127,7 +121,7 @@ class OperationFiles(Operation):
                 data = items[2:]
 
                 if operation not in self.suboperations:
-                    raise RuntimeError('Undefined operation "%s" in series %s' % (operation, name))
+                    raise RuntimeError(f'Undefined operation "{operation}" in series {name}')
 
                 ops.append(self.suboperations[operation](filename, data))
 
@@ -156,25 +150,21 @@ class PatchSeries(list):
 
             items = line.split(' ')
             operation, filename = items[:2]
+            if operation not in self.operations:
+                raise RuntimeError(f'Undefined operation "{operation}" in series {name}')
+            f = os.path.join(self.root, filename)
             data = items[2:]
 
-            if operation in self.operations:
-                f = os.path.join(self.root, filename)
-                if os.path.exists(f):
-                    self.append(self.operations[operation](filename, f, data))
-                else:
-                    raise RuntimeError("Can't find patch %s for series %s" % (filename, self.name))
+            if os.path.exists(f):
+                self.append(self.operations[operation](filename, f, data))
             else:
-                raise RuntimeError('Undefined operation "%s" in series %s' % (operation, name))
+                raise RuntimeError(f"Can't find patch {filename} for series {self.name}")
 
     def __call__(self, cond=bool, dir='.', reverse=False):
-        if not reverse:
-            l = self
-        else:
-            l = self[::-1]
+        l = self if not reverse else self[::-1]
         for i in l:
             if cond(i):
                 i(dir=dir, reverse=reverse)
 
     def __repr__(self):
-        return '<%s object for %s>' % (self.__class__.__name__, self.name)
+        return f'<{self.__class__.__name__} object for {self.name}>'

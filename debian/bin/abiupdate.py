@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import sys
-sys.path.append(sys.path[0] + "/../lib/python")
+sys.path.append(f"{sys.path[0]}/../lib/python")
 
 import optparse
 import os
@@ -34,14 +34,14 @@ class url_debian_pool(object):
         self.base = base
 
     def __call__(self, source, filename, arch):
-        return self.base + "pool/main/" + source[0] + "/" + source + "/" + filename
+        return f"{self.base}pool/main/{source[0]}/{source}/{filename}"
 
 
 class url_debian_ports_pool(url_debian_pool):
     def __call__(self, source, filename, arch):
         if arch == 'all':
             return url_debian_pool.__call__(self, source, filename, arch)
-        return self.base + "pool-" + arch + "/main/" + source[0] + "/" + source + "/" + filename
+        return f"{self.base}pool-{arch}/main/{source[0]}/{source}/{filename}"
 
 
 class Main(object):
@@ -91,9 +91,9 @@ class Main(object):
             shutil.rmtree(self.dir)
 
     def extract_package(self, filename, base):
-        base_out = self.dir + "/" + base
+        base_out = f"{self.dir}/{base}"
         os.mkdir(base_out)
-        os.system("dpkg-deb --extract %s %s" % (filename, base_out))
+        os.system(f"dpkg-deb --extract {filename} {base_out}")
         return base_out
 
     def get_abi(self, arch, prefix):
@@ -102,10 +102,10 @@ class Main(object):
                            self.config['abi', arch]['abiname'])
         except KeyError:
             version_abi = self.version_abi
-        filename = "linux-headers-%s-%s_%s_%s.deb" % (version_abi, prefix, self.version_source, arch)
+        filename = f"linux-headers-{version_abi}-{prefix}_{self.version_source}_{arch}.deb"
         f = self.retrieve_package(self.url, filename, arch)
-        d = self.extract_package(f, "linux-headers-%s_%s" % (prefix, arch))
-        f1 = d + "/usr/src/linux-headers-%s-%s/Module.symvers" % (version_abi, prefix)
+        d = self.extract_package(f, f"linux-headers-{prefix}_{arch}")
+        f1 = f"{d}/usr/src/linux-headers-{version_abi}-{prefix}/Module.symvers"
         s = Symbols(open(f1))
         shutil.rmtree(d)
         return version_abi, s
@@ -118,22 +118,22 @@ class Main(object):
 
     def retrieve_package(self, url, filename, arch):
         u = url(self.source, filename, arch)
-        filename_out = self.dir + "/" + filename
+        filename_out = f"{self.dir}/{filename}"
 
         f_in = urlopen(u)
         f_out = open(filename_out, 'wb')
         while 1:
-            r = f_in.read()
-            if not r:
+            if r := f_in.read():
+                f_out.write(r)
+            else:
                 break
-            f_out.write(r)
         return filename_out
 
     def save_abi(self, version_abi, symbols, arch, featureset, flavour):
-        dir = "debian/abi/%s" % version_abi
+        dir = f"debian/abi/{version_abi}"
         if not os.path.exists(dir):
             os.makedirs(dir)
-        out = "%s/%s_%s_%s" % (dir, arch, featureset, flavour)
+        out = f"{dir}/{arch}_{featureset}_{flavour}"
         symbols.write(open(out, 'w'))
 
     def update_arch(self, config, arch):
@@ -160,13 +160,11 @@ class Main(object):
     def update_flavour(self, config, arch, featureset, flavour):
         config_base = config.merge('base', arch, featureset, flavour)
 
-        self.log("Updating ABI for arch %s, featureset %s, flavour %s: " % (arch, featureset, flavour))
+        self.log(
+            f"Updating ABI for arch {arch}, featureset {featureset}, flavour {flavour}: "
+        )
         try:
-            if featureset == 'none':
-                localversion = flavour
-            else:
-                localversion = featureset + '-' + flavour
-
+            localversion = flavour if featureset == 'none' else f'{featureset}-{flavour}'
             version_abi, abi = self.get_abi(arch, localversion)
             self.save_abi(version_abi, abi, arch, featureset, flavour)
             self.log("Ok.\n")

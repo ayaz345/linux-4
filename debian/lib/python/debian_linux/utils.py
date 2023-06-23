@@ -21,23 +21,19 @@ class Templates(object):
 
         for suffix in ['.in', '']:
             for dir in self.dirs:
-                filename = "%s/%s%s" % (dir, name, suffix)
+                filename = f"{dir}/{name}{suffix}"
                 if os.path.exists(filename):
                     f = codecs.open(filename, 'r', 'utf-8')
                     if prefix == 'control':
                         return read_control(f)
-                    if prefix == 'tests-control':
-                        return read_tests_control(f)
-                    return f.read()
+                    return read_tests_control(f) if prefix == 'tests-control' else f.read()
 
     def get(self, key, default=None):
         if key in self._cache:
             return self._cache[key]
 
         value = self._cache.setdefault(key, self._read(key))
-        if value is None:
-            return default
-        return value
+        return default if value is None else value
 
 
 def read_control(f):
@@ -76,7 +72,7 @@ def _read_rfc822(f, cls):
                 e[last] = '\n'.join(lines)
             i = line.find(':')
             if i < 0:
-                raise ValueError(u"Not a header, not a continuation: ``%s''" % line)
+                raise ValueError(f"Not a header, not a continuation: ``{line}''")
             last = line[:i]
             lines = [line[i + 1:].lstrip()]
         if last:

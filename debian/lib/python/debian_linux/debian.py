@@ -99,7 +99,7 @@ $
     @property
     def complete_noepoch(self):
         if self.revision is not None:
-            return u"%s-%s" % (self.upstream, self.revision)
+            return f"{self.upstream}-{self.revision}"
         return self.upstream
 
     @property
@@ -224,15 +224,12 @@ class PackageDescription(object):
     def __str__(self):
         wrap = utils.TextWrapper(width=74, fix_sentence_endings=True).wrap
         short = ', '.join(self.short)
-        long_pars = []
-        for i in self.long:
-            long_pars.append(wrap(i))
+        long_pars = [wrap(i) for i in self.long]
         long = '\n .\n '.join(['\n '.join(i) for i in long_pars])
         return short + '\n ' + long if long else short
 
     def append(self, str):
-        str = str.strip()
-        if str:
+        if str := str.strip():
             self.long.extend(str.split(u"\n.\n"))
 
     def append_short(self, str):
@@ -257,18 +254,14 @@ class PackageRelation(list):
         return ', '.join(str(i) for i in self)
 
     def _search_value(self, value):
-        for i in self:
-            if i._search_value(value):
-                return i
-        return None
+        return next((i for i in self if i._search_value(value)), None)
 
     def append(self, value, override_arches=None):
         if isinstance(value, str):
             value = PackageRelationGroup(value, override_arches)
         elif not isinstance(value, PackageRelationGroup):
-            raise ValueError(u"got %s" % type(value))
-        j = self._search_value(value)
-        if j:
+            raise ValueError(f"got {type(value)}")
+        if j := self._search_value(value):
             j._update_arches(value)
         else:
             super(PackageRelation, self).append(value)
@@ -289,11 +282,17 @@ class PackageRelationGroup(list):
         return ' | '.join(str(i) for i in self)
 
     def _search_value(self, value):
-        for i, j in zip(self, value):
-            if i.name != j.name or i.operator != j.operator or \
-               i.version != j.version or i.restrictions != j.restrictions:
-                return None
-        return self
+        return next(
+            (
+                None
+                for i, j in zip(self, value)
+                if i.name != j.name
+                or i.operator != j.operator
+                or i.version != j.version
+                or i.restrictions != j.restrictions
+            ),
+            self,
+        )
 
     def _update_arches(self, value):
         for i, j in zip(self, value):
@@ -385,22 +384,13 @@ class PackageRelationEntry(object):
     def parse(self, value):
         match = self._re.match(value)
         if match is None:
-            raise RuntimeError(u"Can't parse dependency %s" % value)
+            raise RuntimeError(f"Can't parse dependency {value}")
         match = match.groups()
         self.name = match[0]
-        if match[1] is not None:
-            self.operator = self._operator(match[1])
-        else:
-            self.operator = None
+        self.operator = self._operator(match[1]) if match[1] is not None else None
         self.version = match[2]
-        if match[3] is not None:
-            self.arches = re.split('\s+', match[3])
-        else:
-            self.arches = []
-        if match[4] is not None:
-            self.restrictions = re.split('\s+', match[4])
-        else:
-            self.restrictions = []
+        self.arches = re.split('\s+', match[3]) if match[3] is not None else []
+        self.restrictions = re.split('\s+', match[4]) if match[4] is not None else []
 
 
 class _ControlFileDict(dict):
@@ -419,8 +409,7 @@ class _ControlFileDict(dict):
             if i in self:
                 keys.remove(i)
                 yield i
-        for i in sorted(list(keys)):
-            yield i
+        yield from sorted(list(keys))
 
     def items(self):
         for i in self.keys():

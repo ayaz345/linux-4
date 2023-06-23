@@ -51,14 +51,21 @@ def main(source, version=None):
             # Validate tag signature
             gpg_wrapper = os.path.join(os.getcwd(),
                                        "debian/bin/git-tag-gpg-wrapper")
-            verify_proc = subprocess.Popen(['git',
-                                            '-c', 'gpg.program=%s' % gpg_wrapper,
-                                            'tag', '-v', 'v%s-rebase' % version],
-                                           env=env)
+            verify_proc = subprocess.Popen(
+                [
+                    'git',
+                    '-c',
+                    f'gpg.program={gpg_wrapper}',
+                    'tag',
+                    '-v',
+                    f'v{version}-rebase',
+                ],
+                env=env,
+            )
             if verify_proc.wait():
                 raise RuntimeError("GPG tag verification failed")
 
-            args = ['git', 'format-patch', 'v%s..v%s-rebase' % (up_ver, version)]
+            args = ['git', 'format-patch', f'v{up_ver}..v{version}-rebase']
             format_proc = subprocess.Popen(args,
                                            cwd=os.path.join(patch_dir, rt_patch_dir),
                                            env=env, stdout=subprocess.PIPE)
@@ -66,11 +73,11 @@ def main(source, version=None):
                 for line in pipe:
                     name = line.strip('\n')
                     with open(os.path.join(patch_dir, rt_patch_dir, name)) as \
-                            source_patch:
+                                                source_patch:
                         patch_from = source_patch.readline()
                         match = re.match(r'From ([0-9a-f]{40}) ', patch_from)
                         assert match
-                        origin = 'https://git.kernel.org/cgit/linux/kernel/git/rt/linux-stable-rt.git/commit?id=%s' % match.group(1)
+                        origin = f'https://git.kernel.org/cgit/linux/kernel/git/rt/linux-stable-rt.git/commit?id={match[1]}'
                         add_patch(name, source_patch, origin)
 
         else:
@@ -78,10 +85,10 @@ def main(source, version=None):
             if version is None:
                 match = re.search(r'(?:^|/)patches-(.+)\.tar\.[gx]z$', source)
                 assert match, 'no version specified or found in filename'
-                version = match.group(1)
+                version = match[1]
             match = re.match(r'^(\d+\.\d+)(?:\.\d+|-rc\d+)?-rt\d+$', version)
             assert match, 'could not parse version string'
-            up_ver = match.group(1)
+            up_ver = match[1]
 
             # Expect an accompanying signature, and validate it
             source_sig = re.sub(r'.[gx]z$', '.sign', source)
@@ -107,7 +114,7 @@ def main(source, version=None):
                 assert os.path.isdir(source_dir), 'tarball does not contain patches directory'
 
                 # Copy patch series
-                origin = 'https://www.kernel.org/pub/linux/kernel/projects/rt/%s/older/patches-%s.tar.xz' % (up_ver, version)
+                origin = f'https://www.kernel.org/pub/linux/kernel/projects/rt/{up_ver}/older/patches-{version}.tar.xz'
                 with open(os.path.join(source_dir, 'series'), 'r') as \
                         source_series_fh:
                     for line in source_series_fh:

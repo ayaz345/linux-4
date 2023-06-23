@@ -10,7 +10,8 @@ def main(repo, range='torvalds/master..dhowells/efi-lock-down'):
     # Only replace patches in this subdirectory and starting with a digit
     # - the others are presumably Debian-specific for now
     lockdown_patch_name_re = re.compile(
-        r'^' + re.escape(lockdown_patch_dir) + r'/\d')
+        f'^{re.escape(lockdown_patch_dir)}' + r'/\d'
+    )
     series_before = []
     series_after = []
 
@@ -23,7 +24,7 @@ def main(repo, range='torvalds/master..dhowells/efi-lock-down'):
                 name = line.strip()
                 if lockdown_patch_name_re.match(name):
                     old_series.add(name)
-                elif len(old_series) == 0:
+                elif not old_series:
                     series_before.append(line)
                 else:
                     series_after.append(line)
@@ -68,11 +69,11 @@ def main(repo, range='torvalds/master..dhowells/efi-lock-down'):
             for line in pipe:
                 name = line.strip('\n')
                 with open(os.path.join(patch_dir, lockdown_patch_dir, name)) as \
-                        source_patch:
+                                        source_patch:
                     patch_from = source_patch.readline()
                     match = re.match(r'From ([0-9a-f]{40}) ', patch_from)
                     assert match
-                    origin = 'https://git.kernel.org/pub/scm/linux/kernel/git/dhowells/linux-fs.git/commit?id=%s' % match.group(1)
+                    origin = f'https://git.kernel.org/pub/scm/linux/kernel/git/dhowells/linux-fs.git/commit?id={match[1]}'
                     add_patch(name, source_patch, origin)
 
         for line in series_after:

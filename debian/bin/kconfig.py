@@ -23,7 +23,7 @@ def opt_callback_dict(option, opt, value, parser):
         raise optparse.OptionValueError('not key=value')
     dest = option.dest
     data = getattr(parser.values, dest)
-    data[match.group(1)] = match.group(2)
+    data[match[1]] = match[2]
 
 
 if __name__ == '__main__':

@@ -12,18 +12,11 @@ class Symbol(object):
         # modules is not an ABI change.  Compare everything else.
         if self.name != other.name:
             return False
-        if self.version != other.version:
-            return False
-        if self.export != other.export:
-            return False
-
-        return True
+        return False if self.version != other.version else self.export == other.export
 
     def __ne__(self, other):
         ret = self.__eq__(other)
-        if ret is NotImplemented:
-            return ret
-        return not ret
+        return ret if ret is NotImplemented else not ret
 
 
 class Symbols(dict):

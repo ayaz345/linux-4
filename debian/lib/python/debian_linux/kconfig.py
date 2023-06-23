@@ -22,11 +22,11 @@ class KConfigEntry(object):
         return '<{}({!r}, {!r}, {!r})>'.format(self.__class__.__name__, self.name, self.value, self.comments)
 
     def __str__(self):
-        return 'CONFIG_{}={}'.format(self.name, self.value)
+        return f'CONFIG_{self.name}={self.value}'
 
     def write(self):
         for comment in self.comments:
-            yield '#. ' + comment
+            yield f'#. {comment}'
         yield str(self)
 
 
@@ -50,17 +50,15 @@ class KConfigEntryTristate(KConfigEntry):
 
     def __str__(self):
         if self.value is self.VALUE_MOD:
-            return 'CONFIG_{}=m'.format(self.name)
+            return f'CONFIG_{self.name}=m'
         if self.value:
-            return 'CONFIG_{}=y'.format(self.name)
-        return '# CONFIG_{} is not set'.format(self.name)
+            return f'CONFIG_{self.name}=y'
+        return f'# CONFIG_{self.name} is not set'
 
 
 class KconfigFile(OrderedDict):
     def __str__(self):
-        ret = []
-        for i in self.str_iter():
-            ret.append(i)
+        ret = list(self.str_iter())
         return '\n'.join(ret) + '\n'
 
     def read(self, f):
@@ -74,10 +72,8 @@ class KconfigFile(OrderedDict):
             elif line.startswith("# CONFIG_"):
                 option = line[9:-11]
                 self.set(option, 'n')
-            elif line.startswith("#") or not line:
-                pass
-            else:
-                raise RuntimeError("Can't recognize %s" % line)
+            elif not line.startswith("#") and line:
+                raise RuntimeError(f"Can't recognize {line}")
 
     def set(self, key, value):
         if value in ('y', 'm', 'n'):

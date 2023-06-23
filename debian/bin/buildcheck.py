@@ -34,30 +34,31 @@ class CheckAbi(object):
                 data = getattr(self.symbol, name)
                 data_ref = getattr(self.symbol_ref, name)
                 if data != data_ref:
-                    info.append("%s: %s -> %s" % (name, data_ref, data))
+                    info.append(f"{name}: {data_ref} -> {data}")
                 else:
-                    info.append("%s: %s" % (name, data))
+                    info.append(f"{name}: {data}")
             out.write("%-48s %s\n" % (self.symbol.name, ", ".join(info)))
 
     def __init__(self, config, dir, arch, featureset, flavour):
         self.config = config
         self.arch, self.featureset, self.flavour = arch, featureset, flavour
 
-        self.filename_new = "%s/Module.symvers" % dir
+        self.filename_new = f"{dir}/Module.symvers"
 
         try:
             version_abi = (self.config['version',]['abiname_base'] + '-' +
                            self.config['abi', arch]['abiname'])
         except KeyError:
             version_abi = self.config['version',]['abiname']
-        self.filename_ref = "debian/abi/%s/%s_%s_%s" % (version_abi, arch, featureset, flavour)
+        self.filename_ref = f"debian/abi/{version_abi}/{arch}_{featureset}_{flavour}"
 
     def __call__(self, out):
         ret = 0
 
         new = Symbols(open(self.filename_new))
-        unversioned = [name for name in new if new[name].version == '0x00000000']
-        if unversioned:
+        if unversioned := [
+            name for name in new if new[name].version == '0x00000000'
+        ]:
             out.write("ABI is not completely versioned!  Refusing to continue.\n")
             out.write("\nUnversioned symbols:\n")
             for name in sorted(unversioned):
@@ -148,8 +149,9 @@ class CheckAbi(object):
 
     def _ignore(self, symbols):
         # TODO: let config merge this lists
-        configs = []
-        configs.append(self.config.get(('abi', self.arch, self.featureset, self.flavour), {}))
+        configs = [
+            self.config.get(('abi', self.arch, self.featureset, self.flavour), {})
+        ]
         configs.append(self.config.get(('abi', self.arch, None, self.flavour), {}))
         configs.append(self.config.get(('abi', self.arch, self.featureset), {}))
         configs.append(self.config.get(('abi', self.arch), {}))

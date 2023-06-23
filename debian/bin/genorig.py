@@ -25,7 +25,7 @@ class Main(object):
         version = changelog.version
 
         if override_version:
-            version = VersionLinux('%s-0' % override_version)
+            version = VersionLinux(f'{override_version}-0')
 
         self.version_dfsg = version.linux_dfsg
         if self.version_dfsg is None:
@@ -33,9 +33,9 @@ class Main(object):
 
         self.log('Using source name %s, version %s, dfsg %s\n' % (source, version.upstream, self.version_dfsg))
 
-        self.orig = '%s-%s' % (source, version.upstream)
-        self.orig_tar = '%s_%s.orig.tar.xz' % (source, version.upstream)
-        self.tag = 'v' + version.linux_upstream_full
+        self.orig = f'{source}-{version.upstream}'
+        self.orig_tar = f'{source}_{version.upstream}.orig.tar.xz'
+        self.tag = f'v{version.linux_upstream_full}'
 
     def __call__(self):
         import tempfile
@@ -71,17 +71,18 @@ class Main(object):
 
         gpg_wrapper = os.path.join(os.getcwd(),
                                    "debian/bin/git-tag-gpg-wrapper")
-        verify_proc = subprocess.Popen(['git',
-                                        '-c', 'gpg.program=%s' % gpg_wrapper,
-                                        'tag', '-v', self.tag],
-                                        cwd=input_repo)
+        verify_proc = subprocess.Popen(
+            ['git', '-c', f'gpg.program={gpg_wrapper}', 'tag', '-v', self.tag],
+            cwd=input_repo,
+        )
         if verify_proc.wait():
             raise RuntimeError("GPG tag verification failed")
 
-        archive_proc = subprocess.Popen(['git', 'archive', '--format=tar',
-                                         '--prefix=%s/' % self.orig, self.tag],
-                                        cwd=input_repo,
-                                        stdout=subprocess.PIPE)
+        archive_proc = subprocess.Popen(
+            ['git', 'archive', '--format=tar', f'--prefix={self.orig}/', self.tag],
+            cwd=input_repo,
+            stdout=subprocess.PIPE,
+        )
         extract_proc = subprocess.Popen(['tar', '-xaf', '-'], cwd=self.dir,
                                         stdin=archive_proc.stdout)
 
@@ -101,7 +102,9 @@ class Main(object):
         if subprocess.Popen(cmdline).wait():
             raise RuntimeError("Can't extract tarball")
 
-        os.rename(os.path.join(self.dir, match.group('dir')), os.path.join(self.dir, self.orig))
+        os.rename(
+            os.path.join(self.dir, match['dir']), os.path.join(self.dir, self.orig)
+        )
 
     def upstream_patch(self, input_patch):
         self.log("Patching source with %s\n" % input_patch)
@@ -109,23 +112,27 @@ class Main(object):
         if not match:
             raise RuntimeError("Can't identify name of patch")
         cmdline = []
-        if match.group('extension') == 'bz2':
+        if match['extension'] == 'bz2':
             cmdline.append('bzcat')
-        elif match.group('extension') == 'gz':
+        elif match['extension'] == 'gz':
             cmdline.append('zcat')
-        elif match.group('extension') == 'xz':
+        elif match['extension'] == 'xz':
             cmdline.append('xzcat')
         else:
             cmdline.append('cat')
-        cmdline.append(input_patch)
-        cmdline.append('| (cd %s; patch -p1 -f -s -t --no-backup-if-mismatch)' % os.path.join(self.dir, self.orig))
+        cmdline.extend(
+            (
+                input_patch,
+                f'| (cd {os.path.join(self.dir, self.orig)}; patch -p1 -f -s -t --no-backup-if-mismatch)',
+            )
+        )
         if os.spawnv(os.P_WAIT, '/bin/sh', ['sh', '-c', ' '.join(cmdline)]):
             raise RuntimeError("Can't patch source")
 
     def debian_patch(self):
         name = "orig"
         self.log("Patching source with debian patch (series %s)\n" % name)
-        fp = open("debian/patches/series-" + name)
+        fp = open(f"debian/patches/series-{name}")
         series = PatchSeries(name, "debian/patches", fp)
         series(dir=os.path.join(self.dir, self.orig))
 

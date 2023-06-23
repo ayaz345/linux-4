@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 
 import sys
-sys.path.append(sys.path[0] + "/../lib/python")
+sys.path.append(f"{sys.path[0]}/../lib/python")
 
 import os, re, subprocess
 
@@ -11,19 +11,13 @@ def base_version(ver):
     # Assume base version is at least 3.0, thus only 2 components wanted
     match = re.match(r'^(\d+\.\d+)', ver)
     assert match
-    return match.group(1)
+    return match[1]
 
 def add_update(ver, inc):
     base = base_version(ver)
-    if base == ver:
-        update = 0
-    else:
-        update = int(ver[len(base)+1:])
+    update = 0 if base == ver else int(ver[len(base)+1:])
     update += inc
-    if update == 0:
-        return base
-    else:
-        return '{}.{}'.format(base, update)
+    return base if update == 0 else f'{base}.{update}'
 
 def next_update(ver):
     return add_update(ver, 1)
@@ -32,30 +26,38 @@ def print_stable_log(log, cur_ver, new_ver):
     major_ver = re.sub(r'^(\d+)\..*', r'\1', cur_ver)
     while cur_ver != new_ver:
         next_ver = next_update(cur_ver)
-        print('    https://www.kernel.org/pub/linux/kernel/v{}.x/ChangeLog-{}'
-              .format(major_ver, next_ver),
-              file=log)
+        print(
+            f'    https://www.kernel.org/pub/linux/kernel/v{major_ver}.x/ChangeLog-{next_ver}',
+            file=log,
+        )
         log.flush() # serialise our output with git's
-        subprocess.check_call(['git', 'log', '--reverse',
-                               '--pretty=    - %s',
-                               'v{}..v{}^'.format(cur_ver, next_ver)],
-                              stdout=log)
+        subprocess.check_call(
+            [
+                'git',
+                'log',
+                '--reverse',
+                '--pretty=    - %s',
+                f'v{cur_ver}..v{next_ver}^',
+            ],
+            stdout=log,
+        )
         cur_ver = next_ver
 
 def main(repo, new_ver):
-    os.environ['GIT_DIR'] = repo + '/.git'
+    os.environ['GIT_DIR'] = f'{repo}/.git'
 
     changelog = Changelog(version=VersionLinux)
     cur_pkg_ver = changelog[0].version
     cur_ver = cur_pkg_ver.linux_upstream_full
 
     if base_version(new_ver) != base_version(cur_ver):
-        print('{} is not on the same stable series as {}'
-              .format(new_ver, cur_ver),
-              file=sys.stderr)
+        print(
+            f'{new_ver} is not on the same stable series as {cur_ver}',
+            file=sys.stderr,
+        )
         sys.exit(2)
 
-    new_pkg_ver = new_ver + '-1'
+    new_pkg_ver = f'{new_ver}-1'
     if cur_pkg_ver.linux_revision_experimental:
         new_pkg_ver += '~exp1'
 
@@ -82,17 +84,17 @@ def main(repo, new_ver):
         with open('debian/changelog.new', 'w') as new_log:
             line_no = 0
             inserted = False
-            intro_line = '  * {}\n'.format(changelog_intro)
+            intro_line = f'  * {changelog_intro}\n'
 
             for line in old_log:
                 line_no += 1
 
                 # Case 2
                 if changelog[0].distribution == 'UNRELEASED' and line_no == 1:
-                    print('{} ({}) UNRELEASED; urgency={}'
-                          .format(changelog[0].source, new_pkg_ver,
-                                  changelog[0].urgency),
-                          file=new_log)
+                    print(
+                        f'{changelog[0].source} ({new_pkg_ver}) UNRELEASED; urgency={changelog[0].urgency}',
+                        file=new_log,
+                    )
                     continue
 
                 if not inserted:
@@ -109,7 +111,7 @@ def main(repo, new_ver):
 
                 # Check that we inserted before hitting the end of the
                 # first version entry
-                assert not (line.startswith(' -- ') and not inserted)
+                assert not line.startswith(' -- ') or inserted
 
                 new_log.write(line)
 

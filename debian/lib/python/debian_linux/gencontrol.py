@@ -47,8 +47,7 @@ class Makefile(object):
         def write(self, out):
             deps_string = ''
             if self.deps:
-                deps = list(self.deps)
-                deps.sort()
+                deps = sorted(self.deps)
                 deps_string = ' ' + ' '.join(deps)
 
             if self.cmds:
@@ -65,7 +64,7 @@ class Makefile(object):
 class MakeFlags(dict):
     def __repr__(self):
         repr = super(flags, self).__repr__()
-        return "%s(%s)" % (self.__class__.__name__, repr)
+        return f"{self.__class__.__name__}({repr})"
 
     def __str__(self):
         return ' '.join("%s='%s'" % i for i in sorted(self.items()))
@@ -114,8 +113,14 @@ class Gencontrol(object):
         pass
 
     def do_main_makefile(self, makefile, makeflags, extra):
-        makefile.add('build-indep', cmds=["$(MAKE) -f debian/rules.real build-indep %s" % makeflags])
-        makefile.add('binary-indep', cmds=["$(MAKE) -f debian/rules.real binary-indep %s" % makeflags])
+        makefile.add(
+            'build-indep',
+            cmds=[f"$(MAKE) -f debian/rules.real build-indep {makeflags}"],
+        )
+        makefile.add(
+            'binary-indep',
+            cmds=[f"$(MAKE) -f debian/rules.real binary-indep {makeflags}"],
+        )
 
     def do_main_packages(self, packages, vars, makeflags, extra):
         pass
@@ -143,17 +148,18 @@ class Gencontrol(object):
                 i.append(package)
                 extra_arches[arch] = i
         for arch in sorted(extra_arches.keys()):
-            cmds = []
-            for i in extra_arches[arch]:
-                cmds.append("$(MAKE) -f debian/rules.real install-dummy ARCH='%s' DH_OPTIONS='-p%s'" % (arch, i['Package']))
-            makefile.add('binary-arch_%s' % arch, ['binary-arch_%s_extra' % arch])
-            makefile.add("binary-arch_%s_extra" % arch, cmds = cmds)
+            cmds = [
+                f"$(MAKE) -f debian/rules.real install-dummy ARCH='{arch}' DH_OPTIONS='-p{i['Package']}'"
+                for i in extra_arches[arch]
+            ]
+            makefile.add(f'binary-arch_{arch}', [f'binary-arch_{arch}_extra'])
+            makefile.add(f"binary-arch_{arch}_extra", cmds = cmds)
 
     def do_indep_featureset(self, packages, makefile, featureset, vars,
                              makeflags, extra):
         vars['localversion'] = ''
         if featureset != 'none':
-            vars['localversion'] = '-' + featureset
+            vars['localversion'] = f'-{featureset}'
 
         self.do_indep_featureset_setup(vars, makeflags, featureset, extra)
         self.do_indep_featureset_makefile(makefile, featureset, makeflags,
@@ -214,7 +220,7 @@ class Gencontrol(object):
 
         vars['localversion'] = ''
         if featureset != 'none':
-            vars['localversion'] = '-' + featureset
+            vars['localversion'] = f'-{featureset}'
 
         self.do_featureset_setup(vars, makeflags, arch, featureset, extra)
         self.do_featureset_makefile(makefile, arch, featureset, makeflags, extra)
@@ -244,7 +250,7 @@ class Gencontrol(object):
     def do_flavour(self, packages, makefile, arch, featureset, flavour, vars, makeflags, extra):
         config_base = self.config.merge('base', arch, featureset, flavour)
 
-        vars['localversion'] += '-' + flavour
+        vars['localversion'] += f'-{flavour}'
 
         self.do_flavour_setup(vars, makeflags, arch, featureset, flavour, extra)
         self.do_flavour_makefile(makefile, arch, featureset, flavour, makeflags, extra)
@@ -325,9 +331,8 @@ class Gencontrol(object):
         self.write_rfc822(codecs.open("debian/control", 'w', 'utf-8'), list)
 
     def write_makefile(self, makefile):
-        f = open("debian/rules.gen", 'w')
-        makefile.write(f)
-        f.close()
+        with open("debian/rules.gen", 'w') as f:
+            makefile.write(f)
 
     def write_rfc822(self, f, list):
         for entry in list:

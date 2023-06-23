@@ -39,9 +39,7 @@ class SchemaItemList(object):
 
     def __call__(self, i):
         i = i.strip()
-        if not i:
-            return []
-        return [j.strip() for j in re.split(self.type, i)]
+        return [] if not i else [j.strip() for j in re.split(self.type, i)]
 
 
 # Using OrderedDict instead of dict makes the pickled config reproducible
@@ -50,8 +48,12 @@ class ConfigCore(collections.OrderedDict):
         temp = []
 
         if arch and featureset and flavour:
-            temp.append(self.get((section, arch, featureset, flavour), {}).get(key))
-            temp.append(self.get((section, arch, None, flavour), {}).get(key))
+            temp.extend(
+                (
+                    self.get((section, arch, featureset, flavour), {}).get(key),
+                    self.get((section, arch, None, flavour), {}).get(key),
+                )
+            )
         if arch and featureset:
             temp.append(self.get((section, arch, featureset), {}).get(key))
         if arch:
@@ -77,7 +79,7 @@ class ConfigCore(collections.OrderedDict):
 
     def merge(self, section, arch=None, featureset=None, flavour=None):
         ret = {}
-        ret.update(self.get((section,), {}))
+        ret |= self.get((section,), {})
         if featureset:
             ret.update(self.get((section, None, featureset), {}))
         if arch:
@@ -94,7 +96,7 @@ class ConfigCore(collections.OrderedDict):
 
 
 class ConfigCoreDump(object):
-    def __new__(self, fp):
+    def __new__(cls, fp):
         return pickle.load(fp)
 
 
@@ -192,7 +194,7 @@ class ConfigCoreHierarchy(object):
 
         def read_featureset(self, ret, featureset):
             config = ConfigParser(self.schema)
-            config.read(self.get_files('featureset-%s' % featureset))
+            config.read(self.get_files(f'featureset-{featureset}'))
 
             for section in iter(config):
                 real = (section[-1], None, featureset)
@@ -216,14 +218,12 @@ class ConfigParser(object):
         return iter(self._convert())
 
     def __str__(self):
-        return '<%s(%s)>' % (self.__class__.__name__, self._convert())
+        return f'<{self.__class__.__name__}({self._convert()})>'
 
     def _convert(self):
         ret = {}
         for section in self._config.sections():
-            data = {}
-            for key, value in self._config.items(section):
-                data[key] = value
+            data = dict(self._config.items(section))
             section_list = section.split('_')
             section_base = section_list[-1]
             if section_base in self.schemas:
@@ -254,7 +254,7 @@ if __name__ == '__main__':
     sys.path.append('debian/lib/python')
     config = ConfigCoreDump(open('debian/config.defines.dump', 'rb'))
     for section, items in sorted(config.items(), key=lambda a:tuple(i or '' for i in a[0])):
-        print(u"[%s]" % (section,))
+        print(f"[{section}]")
         for item, value in sorted(items.items()):
-            print(u"%s: %s" % (item, value))
+            print(f"{item}: {value}")
         print()
